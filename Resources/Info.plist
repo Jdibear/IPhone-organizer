@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Tidy</string>
+    <key>CFBundleDisplayName</key>
+    <string>Tidy</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.tidy.mac</string>
+    <key>CFBundleExecutable</key>
+    <string>Tidy</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Tidy sorts the files on your Desktop into folders.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Tidy sorts the files in your Downloads folder into folders.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Tidy measures how much space your Documents folder uses.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Tidy finds screenshots, likely duplicates and long videos so you can clean up your library.</string>
+</dict>
+</plist>
