@@ -152,6 +152,16 @@ final class FolderTidyModel {
         status = "Tidied \(done.count) item\(done.count == 1 ? "" : "s")" + (failures > 0 ? " — \(failures) failed." : ".")
     }
 
+    /// Where Undo will put things back.
+    var undoOriginals: [URL] {
+        undoSteps.map {
+            switch $0 {
+            case .moved(let from, _): from
+            case .trashed(let original, _): original
+            }
+        }
+    }
+
     func undo() {
         let fm = FileManager.default
         var restored = 0
@@ -173,26 +183,47 @@ enum TidyPlanner {
     /// Downloads still in progress — never touch these.
     static let partialExtensions: Set<String> = ["download", "crdownload", "part", "partial", "opdownload"]
 
-    static func plan(folder: URL) throws -> [PlannedAction] {
+    struct LooseFile: Sendable {
+        let url: URL
+        let category: FileCategory
+        let size: Int64
+        let modified: Date
+        let isPackage: Bool
+
+        /// Where tidying puts this file inside `folder`.
+        func destination(in folder: URL) -> URL {
+            folder
+                .appending(path: category.folderName, directoryHint: .isDirectory)
+                .appending(path: url.lastPathComponent)
+        }
+    }
+
+    /// Files sitting directly in `folder` that tidying would move: no plain folders, hidden files
+    /// or downloads still in progress.
+    static func looseFiles(in folder: URL) throws -> [LooseFile] {
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isPackageKey, .fileSizeKey, .contentModificationDateKey]
         let items = try FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
 
-        struct Candidate { let url: URL; let category: FileCategory; let size: Int64; let modified: Date; let isPackage: Bool }
-        var candidates: [Candidate] = []
+        var files: [LooseFile] = []
         for url in items {
             let values = try? url.resourceValues(forKeys: keys)
             let isPackage = values?.isPackage ?? false
             // Plain folders (including the category folders we create) stay where they are.
             if values?.isDirectory == true && !isPackage { continue }
             if partialExtensions.contains(url.pathExtension.lowercased()) { continue }
-            candidates.append(Candidate(
+            files.append(LooseFile(
                 url: url,
                 category: FileCategory.classify(url),
                 size: Int64(values?.fileSize ?? 0),
                 modified: values?.contentModificationDate ?? .distantPast,
                 isPackage: isPackage))
         }
+        return files
+    }
+
+    static func plan(folder: URL) throws -> [PlannedAction] {
+        let candidates = try looseFiles(in: folder)
 
         // Exact duplicates: same size first (cheap), then same SHA-256. Keep the shortest name,
         // so "report.pdf" survives and "report (1).pdf" goes to the Trash.
@@ -221,9 +252,7 @@ enum TidyPlanner {
             if let original = duplicateOf[i] {
                 kind = .trashDuplicate(of: original)
             } else {
-                kind = .move(to: folder
-                    .appending(path: c.category.folderName, directoryHint: .isDirectory)
-                    .appending(path: c.url.lastPathComponent))
+                kind = .move(to: c.destination(in: folder))
             }
             return PlannedAction(source: c.url, kind: kind, category: c.category, size: c.size, modified: c.modified)
         }

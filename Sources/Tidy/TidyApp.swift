@@ -14,12 +14,22 @@ struct TidyApp: App {
         }
     }()
 
+    @State private var autoTidy = AutoTidyController()
+
     var body: some Scene {
-        WindowGroup("Tidy") {
+        WindowGroup("Tidy", id: "main") {
             ContentView()
+                .environment(autoTidy)
         }
         .modelContainer(container)
         .defaultSize(width: 1100, height: 720)
+
+        // Keeps Tidy running (and sorting Downloads) after the window is closed.
+        MenuBarExtra("Tidy", systemImage: "tray.and.arrow.down") {
+            AutoTidyMenu()
+                .environment(autoTidy)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 

@@ -3,11 +3,15 @@ import AppKit
 
 struct FolderTidyView: View {
     @Bindable var model: FolderTidyModel
+    @Environment(AutoTidyController.self) private var autoTidy
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding()
+            autoTidyBar
+                .padding(.horizontal)
+                .padding(.bottom, 10)
             Divider()
             if model.isWorking {
                 ProgressView("Looking through \(model.folder.lastPathComponent)…")
@@ -27,6 +31,33 @@ struct FolderTidyView: View {
         }
         .navigationTitle("Downloads & Desktop")
         .task(id: model.folder) { await model.scan() }
+        .onChange(of: autoTidy.lastSortDate) {
+            if model.folder.standardizedFileURL == autoTidy.folder.standardizedFileURL {
+                Task { await model.scan() }
+            }
+        }
+    }
+
+    private var autoTidyBar: some View {
+        HStack(spacing: 16) {
+            AutoTidyToggles()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            Spacer()
+            if let status = autoTidy.status {
+                Text(status).font(.caption).foregroundStyle(.red)
+            } else if let last = autoTidy.recent.first {
+                Text("Last sorted: \(last.to.lastPathComponent) → \(last.category.folderName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } else if autoTidy.isEnabled {
+                Text("New downloads are sorted as soon as they finish.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var header: some View {
@@ -122,7 +153,10 @@ struct FolderTidyView: View {
             }
             Spacer()
             if !model.undoSteps.isEmpty {
-                Button("Undo", action: model.undo)
+                Button("Undo") {
+                    autoTidy.leaveAlone(model.undoOriginals)
+                    model.undo()
+                }
             }
             Button("Tidy \(model.includedCount) Item\(model.includedCount == 1 ? "" : "s")", action: model.apply)
                 .buttonStyle(.borderedProminent)
