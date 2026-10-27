@@ -73,7 +73,9 @@ final class PhotosModel {
                 PHAssetChangeRequest.deleteAssets(assets as NSArray)
             }
             selection.subtract(assets.map(\.localIdentifier))
-            status = "Deleted \(assets.count) item\(assets.count == 1 ? "" : "s"). They're in Recently Deleted for 30 days."
+            status = assets.count == 1
+                ? "Deleted 1 item. It's in Recently Deleted for 30 days."
+                : "Deleted \(assets.count) items. They're in Recently Deleted for 30 days."
             await load()
         } catch {
             status = "Nothing was deleted."

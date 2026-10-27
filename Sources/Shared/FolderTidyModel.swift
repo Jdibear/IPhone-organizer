@@ -165,6 +165,10 @@ final class FolderTidyModel {
     func undo() {
         let fm = FileManager.default
         var restored = 0
+        let categoryFolders = Set(undoSteps.compactMap { step -> URL? in
+            if case .moved(_, let to) = step { return to.deletingLastPathComponent() }
+            return nil
+        })
         for step in undoSteps.reversed() {
             switch step {
             case .moved(let from, let to):
@@ -172,6 +176,10 @@ final class FolderTidyModel {
             case .trashed(let original, let trashURL):
                 if (try? fm.moveItem(at: trashURL, to: original)) != nil { restored += 1 }
             }
+        }
+        // Remove the category folders Tidy made, but only when nothing at all is left inside.
+        for folder in categoryFolders where (try? fm.contentsOfDirectory(atPath: folder.path))?.isEmpty == true {
+            try? fm.removeItem(at: folder)
         }
         undoSteps = []
         status = "Put back \(restored) item\(restored == 1 ? "" : "s")."
