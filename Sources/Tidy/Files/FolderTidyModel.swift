@@ -188,6 +188,8 @@ enum TidyPlanner {
         let category: FileCategory
         let size: Int64
         let modified: Date
+        /// When the file landed in this folder (download finished, file dropped in…).
+        let added: Date?
         let isPackage: Bool
 
         /// Where tidying puts this file inside `folder`.
@@ -201,7 +203,9 @@ enum TidyPlanner {
     /// Files sitting directly in `folder` that tidying would move: no plain folders, hidden files
     /// or downloads still in progress.
     static func looseFiles(in folder: URL) throws -> [LooseFile] {
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isPackageKey, .fileSizeKey, .contentModificationDateKey]
+        let keys: Set<URLResourceKey> = [
+            .isDirectoryKey, .isPackageKey, .fileSizeKey, .contentModificationDateKey, .addedToDirectoryDateKey,
+        ]
         let items = try FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
 
@@ -217,6 +221,7 @@ enum TidyPlanner {
                 category: FileCategory.classify(url),
                 size: Int64(values?.fileSize ?? 0),
                 modified: values?.contentModificationDate ?? .distantPast,
+                added: values?.addedToDirectoryDate,
                 isPackage: isPackage))
         }
         return files

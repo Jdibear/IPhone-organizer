@@ -17,7 +17,7 @@ struct AutoTidyEvent: Identifiable {
 final class AutoTidyController {
     static let enabledKey = "autoTidyDownloads"
 
-    let folder = URL.downloadsDirectory
+    let folder: URL
 
     var isEnabled: Bool {
         didSet {
@@ -35,23 +35,37 @@ final class AutoTidyController {
     /// Names to leave in place: files present when watching started, files put back with Undo,
     /// and files that couldn't be moved.
     private var ignored = Set<String>()
+    /// Only files that landed in Downloads after this moment are ever sorted — a second safety net
+    /// on top of `ignored`.
+    private var watchingSince = Date.distantFuture
     private var source: DispatchSourceFileSystemObject?
     private var pendingCheck: Task<Void, Never>?
+    private var retryStart: Task<Void, Never>?
 
-    init() {
+    init(folder: URL = .downloadsDirectory) {
+        self.folder = folder
         isEnabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
         if isEnabled { start() }
     }
 
     private func start() {
         guard source == nil else { return }
-        ignored = Set(((try? TidyPlanner.looseFiles(in: folder)) ?? []).map(\.url.lastPathComponent))
+        retryStart?.cancel()
 
+        // Never start watching without knowing what's already there — otherwise every existing
+        // file would look new. This fails until macOS grants access to Downloads, so keep retrying.
         let fd = open(folder.path, O_EVTONLY)
-        guard fd >= 0 else {
-            status = "Can't watch Downloads. Allow access in System Settings › Privacy & Security › Files & Folders."
+        guard fd >= 0, let existing = try? TidyPlanner.looseFiles(in: folder) else {
+            if fd >= 0 { close(fd) }
+            status = "Waiting for access to Downloads. Allow it in System Settings › Privacy & Security › Files & Folders."
+            retryStart = Task {
+                try? await Task.sleep(for: .seconds(5))
+                if !Task.isCancelled && isEnabled { start() }
+            }
             return
         }
+        ignored = Set(existing.map(\.url.lastPathComponent))
+        watchingSince = .now
         // .write on a directory fires when entries are added, removed or renamed —
         // which is exactly what a browser does when a download finishes.
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
@@ -68,6 +82,8 @@ final class AutoTidyController {
         source?.cancel()
         source = nil
         pendingCheck?.cancel()
+        retryStart?.cancel()
+        watchingSince = .distantFuture
         status = nil
     }
 
@@ -81,10 +97,12 @@ final class AutoTidyController {
     }
 
     private func sortNewArrivals() async {
+        guard source != nil else { return }
         let folder = folder
         let ignored = ignored
+        let since = watchingSince
         let (ready, stillWriting) = await Task.detached(priority: .utility) {
-            Self.finishedFiles(in: folder, ignoring: ignored)
+            Self.finishedFiles(in: folder, ignoring: ignored, addedSince: since)
         }.value
 
         let fm = FileManager.default
@@ -109,10 +127,12 @@ final class AutoTidyController {
 
     /// New files that have stopped changing, and whether any others are still being written.
     nonisolated private static func finishedFiles(
-        in folder: URL, ignoring ignored: Set<String>
+        in folder: URL, ignoring ignored: Set<String>, addedSince since: Date
     ) -> (ready: [TidyPlanner.LooseFile], stillWriting: Bool) {
         let fresh = ((try? TidyPlanner.looseFiles(in: folder)) ?? [])
             .filter { !ignored.contains($0.url.lastPathComponent) }
+            // No "date added" means we can't prove the file is new, so leave it alone.
+            .filter { ($0.added ?? .distantPast) >= since }
         guard !fresh.isEmpty else { return ([], false) }
 
         Thread.sleep(forTimeInterval: 1.5)
