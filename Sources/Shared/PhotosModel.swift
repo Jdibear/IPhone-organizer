@@ -7,7 +7,7 @@ import Photos
 final class PhotosModel {
     enum Section: String, CaseIterable, Identifiable {
         case screenshots = "Screenshots"
-        case duplicates = "Likely Duplicates"
+        case duplicates = "Duplicates"
         case videos = "Longest Videos"
         var id: Self { self }
     }
@@ -101,8 +101,8 @@ final class PhotosModel {
         return assets(PHAsset.fetchAssets(with: .video, options: options))
     }
 
-    /// Photos taken in the same second with the same dimensions are almost always copies
-    /// (re-imports, saved twice from a chat, etc.).
+    /// Copies from re-imports or saving twice from a chat share a timestamp and size, so those are
+    /// the candidates; `PhotoMatcher` then drops shots that only look alike.
     nonisolated private static func fetchDuplicates() -> [[PHAsset]] {
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
@@ -114,7 +114,10 @@ final class PhotosModel {
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(asset)
         }
-        return order.compactMap { groups[$0] }.filter { $0.count > 1 }
+        // Same second and size only makes them candidates; keep the ones whose pixels actually match.
+        return order.compactMap { groups[$0] }.filter { $0.count > 1 }.flatMap { candidates in
+            PhotoMatcher.copySets(candidates.map(PhotoMatcher.fingerprint(of:))).map { $0.map { candidates[$0] } }
+        }
     }
 
     nonisolated private static func assets(_ result: PHFetchResult<PHAsset>) -> [PHAsset] {
