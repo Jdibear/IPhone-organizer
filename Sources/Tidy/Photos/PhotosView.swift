@@ -97,7 +97,7 @@ struct PhotosView: View {
     private var summary: String {
         if model.section == .duplicates {
             let groups = model.duplicateGroups.count
-            return "\(groups) \(groups == 1 ? "set" : "sets") of look-alike photos. The first in each set is the original; "
+            return "\(groups) \(groups == 1 ? "set" : "sets") of duplicate photos. The first in each set is the original; "
                 + "Select All picks only the copies. Deleted items go to Recently Deleted for 30 days."
         }
         return "Click to select. Deleted items go to Recently Deleted for 30 days, and sync to your iPhone if iCloud Photos is on."
@@ -112,7 +112,7 @@ struct PhotosView: View {
     }
 }
 
-/// One set of look-alike photos side by side, so you can see they really are copies.
+/// One set of duplicate photos side by side, so you can see they really are copies.
 private struct DuplicateGroupRow: View {
     let group: [PHAsset]
     let model: PhotosModel

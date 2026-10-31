@@ -104,7 +104,7 @@ struct PhotosScreen: View {
     private var summary: String {
         if model.section == .duplicates {
             let groups = model.duplicateGroups.count
-            return "\(groups) \(groups == 1 ? "set" : "sets") of look-alike photos, \(model.duplicates.count) extra copies. "
+            return "\(groups) \(groups == 1 ? "set" : "sets") of duplicate photos, \(model.duplicates.count) extra copies. "
                 + "The first photo in each set is the original; Select All picks only the copies."
         }
         return "\(model.currentAssets.count) found. Tap to select. Deleted items stay in Recently Deleted for 30 days."
@@ -125,7 +125,7 @@ struct PhotosScreen: View {
     }
 }
 
-/// One set of look-alike photos side by side, so you can see they really are copies.
+/// One set of duplicate photos side by side, so you can see they really are copies.
 private struct DuplicateGroupRow: View {
     let group: [PHAsset]
     let model: PhotosModel
