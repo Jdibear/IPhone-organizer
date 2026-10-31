@@ -15,8 +15,10 @@ final class PhotosModel {
     var authorization = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     var section: Section = .screenshots
     var screenshots: [PHAsset] = []
-    /// Extra copies only — the first photo of each duplicate group is kept out of this list.
-    var duplicates: [PHAsset] = []
+    /// Each group holds photos that look like copies of each other; the first one is the original to keep.
+    var duplicateGroups: [[PHAsset]] = []
+    /// Extra copies only — the original of each group is left out.
+    var duplicates: [PHAsset] { duplicateGroups.flatMap { $0.dropFirst() } }
     var videos: [PHAsset] = []
     var selection: Set<String> = []
     var isLoading = false
@@ -28,7 +30,7 @@ final class PhotosModel {
     var currentAssets: [PHAsset] {
         switch section {
         case .screenshots: screenshots
-        case .duplicates: duplicates
+        case .duplicates: duplicateGroups.flatMap { $0 }
         case .videos: videos
         }
     }
@@ -49,9 +51,9 @@ final class PhotosModel {
             (Self.fetchScreenshots(), Self.fetchDuplicates(), Self.fetchVideos())
         }.value
         screenshots = shots
-        duplicates = dupes
+        duplicateGroups = dupes
         videos = vids
-        selection = selection.intersection(Set((shots + dupes + vids).map(\.localIdentifier)))
+        selection = selection.intersection(Set((shots + dupes.flatMap { $0 } + vids).map(\.localIdentifier)))
         isLoading = false
         hasLoaded = true
     }
@@ -61,7 +63,9 @@ final class PhotosModel {
     }
 
     func selectAllInSection() {
-        selection.formUnion(currentAssets.map(\.localIdentifier))
+        // For duplicates, only the extra copies — never the original of a group.
+        let assets = section == .duplicates ? duplicates : currentAssets
+        selection.formUnion(assets.map(\.localIdentifier))
     }
 
     func deleteSelected() async {
@@ -99,17 +103,18 @@ final class PhotosModel {
 
     /// Photos taken in the same second with the same dimensions are almost always copies
     /// (re-imports, saved twice from a chat, etc.).
-    nonisolated private static func fetchDuplicates() -> [PHAsset] {
+    nonisolated private static func fetchDuplicates() -> [[PHAsset]] {
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-        var seen = Set<String>()
-        var extras: [PHAsset] = []
+        var groups: [String: [PHAsset]] = [:]
+        var order: [String] = []
         PHAsset.fetchAssets(with: .image, options: options).enumerateObjects { asset, _, _ in
             guard let date = asset.creationDate, asset.burstIdentifier == nil else { return }
             let key = "\(Int(date.timeIntervalSince1970))-\(asset.pixelWidth)x\(asset.pixelHeight)"
-            if !seen.insert(key).inserted { extras.append(asset) }
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(asset)
         }
-        return extras
+        return order.compactMap { groups[$0] }.filter { $0.count > 1 }
     }
 
     nonisolated private static func assets(_ result: PHFetchResult<PHAsset>) -> [PHAsset] {
