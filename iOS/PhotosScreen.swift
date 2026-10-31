@@ -52,7 +52,7 @@ struct PhotosScreen: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text(model.status ?? "\(model.currentAssets.count) found. Tap to select. Deleted items stay in Recently Deleted for 30 days.")
+                Text(model.status ?? summary)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -60,6 +60,12 @@ struct PhotosScreen: View {
                     ProgressView("Reading your library…").frame(maxWidth: .infinity).padding(.top, 40)
                 } else if model.currentAssets.isEmpty {
                     ContentUnavailableView("Nothing here", systemImage: "checkmark.circle")
+                } else if model.section == .duplicates {
+                    LazyVStack(alignment: .leading, spacing: 20) {
+                        ForEach(model.duplicateGroups, id: \.first!.localIdentifier) { group in
+                            DuplicateGroupRow(group: group, model: model)
+                        }
+                    }
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 3)], spacing: 3) {
                         ForEach(model.currentAssets, id: \.localIdentifier) { asset in
@@ -95,6 +101,15 @@ struct PhotosScreen: View {
         }
     }
 
+    private var summary: String {
+        if model.section == .duplicates {
+            let groups = model.duplicateGroups.count
+            return "\(groups) \(groups == 1 ? "set" : "sets") of look-alike photos, \(model.duplicates.count) extra copies. "
+                + "The first photo in each set is the original; Select All picks only the copies."
+        }
+        return "\(model.currentAssets.count) found. Tap to select. Deleted items stay in Recently Deleted for 30 days."
+    }
+
     private func shortName(_ section: PhotosModel.Section) -> String {
         switch section {
         case .screenshots: "Screenshots"
@@ -107,6 +122,44 @@ struct PhotosScreen: View {
         try? URL.homeDirectory
             .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             .volumeAvailableCapacityForImportantUsage
+    }
+}
+
+/// One set of look-alike photos side by side, so you can see they really are copies.
+private struct DuplicateGroupRow: View {
+    let group: [PHAsset]
+    let model: PhotosModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("\(group.count) copies").font(.subheadline.bold())
+                if let date = group.first?.creationDate {
+                    Text(date, format: .dateTime.day().month(.abbreviated).year().hour().minute())
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Array(group.enumerated()), id: \.element.localIdentifier) { index, asset in
+                        PhotoThumbnail(asset: asset, isSelected: model.selection.contains(asset.localIdentifier))
+                            .frame(width: 110)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(alignment: .bottomLeading) {
+                                Text(index == 0 ? "Original" : "Copy \(index)")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(index == 0 ? Color.green : Color.black.opacity(0.55), in: Capsule())
+                                    .padding(5)
+                            }
+                            .onTapGesture { model.toggle(asset) }
+                    }
+                }
+            }
+        }
     }
 }
 
