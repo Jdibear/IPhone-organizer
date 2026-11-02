@@ -52,7 +52,12 @@ struct PhotosView: View {
                 Button("Select All", action: model.selectAllInSection)
                     .disabled(model.currentAssets.isEmpty)
                 Button("Delete \(model.selectedInSection.count) Selected", role: .destructive) {
-                    Task { await model.deleteSelected() }
+                    Task {
+                        await model.deleteSelected()
+                        if let status = model.status, status.hasPrefix("Deleted") {
+                            ActivityLog.shared.add(status, icon: "photo")
+                        }
+                    }
                 }
                 .disabled(model.selectedInSection.isEmpty)
             }

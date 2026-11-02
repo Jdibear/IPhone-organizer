@@ -49,6 +49,10 @@ struct AutoTidyMenu: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Tidy").font(.headline)
+            Text("Sorts new downloads into folders by type, like Documents and Images. Open Tidy for apps, clean-up and more.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             AutoTidyToggles()
                 .toggleStyle(.switch)
                 .controlSize(.small)

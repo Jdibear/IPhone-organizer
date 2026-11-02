@@ -9,6 +9,12 @@ struct FolderTidyView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding()
+            Text(explanation)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal)
+                .padding(.bottom, 10)
             autoTidyBar
                 .padding(.horizontal)
                 .padding(.bottom, 10)
@@ -156,13 +162,51 @@ struct FolderTidyView: View {
                 Button("Undo") {
                     autoTidy.leaveAlone(model.undoOriginals)
                     model.undo()
+                    ActivityLog.shared.add("\(model.status ?? "Put items back.") (Undo in \(model.folder.lastPathComponent))", icon: "arrow.uturn.backward")
                 }
             }
-            Button("Tidy \(model.includedCount) Item\(model.includedCount == 1 ? "" : "s")", action: model.apply)
+            Button("Tidy \(model.includedCount) Item\(model.includedCount == 1 ? "" : "s")") {
+                model.apply()
+                // Keep apply's own message when something failed, so a failure is never hidden.
+                let failed = model.status?.contains("failed") == true
+                let result = failed ? (model.status ?? doneSummary) : doneSummary
+                model.status = result
+                ActivityLog.shared.add(result, icon: "folder.badge.gearshape")
+            }
                 .buttonStyle(.borderedProminent)
                 .disabled(model.includedCount == 0)
                 .keyboardShortcut(.defaultAction)
         }
+    }
+
+    /// Says up front what the Tidy button is about to do to the ticked files.
+    private var explanation: String {
+        let included = model.actions.filter(\.included)
+        guard !included.isEmpty else {
+            return "Tidy sorts the loose files in this folder into subfolders by type. You'll see the plan here before anything moves."
+        }
+        let duplicates = included.filter(\.isDuplicate).count
+        let moves = included.count - duplicates
+        var parts: [String] = []
+        if moves > 0 { parts.append("move \(moves) file\(moves == 1 ? "" : "s") into subfolders of \(model.folder.lastPathComponent)") }
+        if duplicates > 0 { parts.append("send \(duplicates) exact duplicate\(duplicates == 1 ? "" : "s") to the Trash") }
+        return "Clicking Tidy will " + parts.joined(separator: " and ") + ". Nothing else changes, and Undo puts it all back."
+    }
+
+    /// Says afterwards where everything went, based on what actually moved.
+    private var doneSummary: String {
+        var folders: [String: Int] = [:]
+        var trashed = 0
+        for step in model.undoSteps {
+            switch step {
+            case .moved(_, let to): folders[to.deletingLastPathComponent().lastPathComponent, default: 0] += 1
+            case .trashed: trashed += 1
+            }
+        }
+        var parts = folders.sorted { $0.value > $1.value }.map { "\($0.value) to \($0.key)" }
+        if trashed > 0 { parts.append("\(trashed) duplicate\(trashed == 1 ? "" : "s") to the Trash") }
+        guard !parts.isEmpty else { return model.status ?? "Nothing was moved." }
+        return "Tidied \(model.folder.lastPathComponent): moved " + parts.joined(separator: ", ") + "."
     }
 
     private var categoryCounts: [(String, Int)] {

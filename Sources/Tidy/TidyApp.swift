@@ -23,6 +23,10 @@ struct TidyApp: App {
         }
         .modelContainer(container)
         .defaultSize(width: 1100, height: 720)
+        // Always open a window on launch, even if the last one was closed; otherwise clicking Tidy
+        // looks like it does nothing.
+        .defaultLaunchBehavior(.presented)
+        .restorationBehavior(.disabled)
 
         // Keeps Tidy running (and sorting Downloads) after the window is closed.
         MenuBarExtra("Tidy", systemImage: "tray.and.arrow.down") {
@@ -34,13 +38,16 @@ struct TidyApp: App {
 }
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case files, storage, photos, tasks
+    case overview, files, apps, cleanup, storage, photos, tasks
 
     var id: Self { self }
 
     var title: String {
         switch self {
+        case .overview: "Overview"
         case .files: "Downloads & Desktop"
+        case .apps: "Apps"
+        case .cleanup: "Clean Up"
         case .storage: "Storage"
         case .photos: "Photos"
         case .tasks: "Tasks & Notes"
@@ -49,7 +56,10 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .overview: "sparkles"
         case .files: "folder.badge.gearshape"
+        case .apps: "square.grid.2x2"
+        case .cleanup: "trash.circle"
         case .storage: "internaldrive"
         case .photos: "photo.on.rectangle"
         case .tasks: "checklist"
@@ -58,9 +68,11 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
-    @State private var selection: SidebarItem? = .files
+    @State private var selection: SidebarItem? = .overview
     // Models live here so each section keeps its results when you switch away.
     @State private var files = FolderTidyModel(folder: .downloadsDirectory)
+    @State private var apps = AppsModel()
+    @State private var cleanup = CleanupModel()
     @State private var storage = StorageModel()
     @State private var photos = PhotosModel()
 
@@ -71,8 +83,11 @@ struct ContentView: View {
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 210)
         } detail: {
-            switch selection ?? .files {
+            switch selection ?? .overview {
+            case .overview: OverviewView(selection: $selection, files: files, apps: apps, cleanup: cleanup, photos: photos)
             case .files: FolderTidyView(model: files)
+            case .apps: AppsView(model: apps)
+            case .cleanup: CleanupView(model: cleanup)
             case .storage: StorageView(model: storage)
             case .photos: PhotosView(model: photos)
             case .tasks: TasksNotesView()

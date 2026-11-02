@@ -51,31 +51,49 @@ final class AutoTidyController {
     private func start() {
         guard source == nil else { return }
         retryStart?.cancel()
+        let folder = folder
 
-        // Never start watching without knowing what's already there — otherwise every existing
-        // file would look new. This fails until macOS grants access to Downloads, so keep retrying.
-        let fd = open(folder.path, O_EVTONLY)
-        guard fd >= 0, let existing = try? TidyPlanner.looseFiles(in: folder) else {
-            if fd >= 0 { close(fd) }
-            status = "Waiting for access to Downloads. Allow it in System Settings › Privacy & Security › Files & Folders."
-            retryStart = Task {
+        retryStart = Task {
+            // Never start watching without knowing what's already there — otherwise every existing
+            // file would look new. macOS holds these calls until its permission prompt is answered,
+            // so they run off the main thread to keep the window from waiting on them.
+            let access = await Task.detached(priority: .userInitiated) { () -> (fd: Int32, names: Set<String>, since: Date)? in
+                let fd = open(folder.path, O_EVTONLY)
+                guard fd >= 0 else { return nil }
+                let since = Date.now
+                guard let existing = try? TidyPlanner.looseFiles(in: folder) else {
+                    close(fd)
+                    return nil
+                }
+                return (fd, Set(existing.map(\.url.lastPathComponent)), since)
+            }.value
+
+            guard let access else {
+                // Fails until macOS grants access to Downloads, so keep retrying.
+                status = "Waiting for access to Downloads. Allow it in System Settings › Privacy & Security › Files & Folders."
                 try? await Task.sleep(for: .seconds(5))
                 if !Task.isCancelled && isEnabled { start() }
+                return
             }
-            return
+            // Auto-sort may have been switched off while waiting for the prompt.
+            guard !Task.isCancelled, isEnabled, source == nil else {
+                close(access.fd)
+                return
+            }
+            ignored = access.names
+            watchingSince = access.since
+            // .write on a directory fires when entries are added, removed or renamed —
+            // which is exactly what a browser does when a download finishes.
+            let fd = access.fd
+            let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
+            source.setEventHandler { [weak self] in
+                MainActor.assumeIsolated { self?.scheduleCheck(after: .seconds(2)) }
+            }
+            source.setCancelHandler { close(fd) }
+            source.resume()
+            self.source = source
+            status = nil
         }
-        ignored = Set(existing.map(\.url.lastPathComponent))
-        watchingSince = .now
-        // .write on a directory fires when entries are added, removed or renamed —
-        // which is exactly what a browser does when a download finishes.
-        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
-        source.setEventHandler { [weak self] in
-            MainActor.assumeIsolated { self?.scheduleCheck(after: .seconds(2)) }
-        }
-        source.setCancelHandler { close(fd) }
-        source.resume()
-        self.source = source
-        status = nil
     }
 
     private func stop() {
@@ -120,6 +138,10 @@ final class AutoTidyController {
         if !moved.isEmpty {
             recent = Array((moved.reversed() + recent).prefix(20))
             lastSortDate = .now
+            for event in moved {
+                ActivityLog.shared.add("Sorted new download \(event.to.lastPathComponent) into \(event.category.folderName).",
+                                       icon: "tray.and.arrow.down")
+            }
         }
         // Writing into an existing file doesn't touch the folder itself, so poll until it settles.
         if stillWriting { scheduleCheck(after: .seconds(5)) }

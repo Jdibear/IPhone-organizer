@@ -14,6 +14,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Tidy" "$APP/Contents/MacOS/Tidy"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 
-# Ad-hoc signature so macOS remembers the Photos / folder permissions you grant.
-codesign --force --sign - "$APP"
+# macOS ties Photos / folder permissions to the signature. A real certificate keeps them across rebuilds;
+# an ad-hoc signature changes every build, so macOS would ask again each time.
+IDENTITY="$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ { print $2; exit }')"
+codesign --force --sign "${IDENTITY:--}" "$APP"
 echo "Built $APP"
