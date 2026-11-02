@@ -6,16 +6,19 @@ Native SwiftUI apps that keep your Mac and iPhone organized.
 
 | Section | What it does |
 | --- | --- |
+| **Overview** | The first screen. Explains each part of Tidy, shows what it found, and lists what Tidy has done. |
 | **Downloads & Desktop** | Previews sorting loose files into `Screenshots`, `Images`, `Documents`, `Installers`, `Archives`, `Videos`, `Audio`, `Code` and `Other`. Exact duplicates (same SHA-256) go to the Trash. Flags files untouched for 90+ days. Nothing moves until you click **Tidy**, and **Undo** puts everything back. Optionally sorts **new downloads automatically** as soon as they finish, from the window or the menu bar. |
+| **Apps** | Lists your apps by type, by size, or by those not opened in 6 months. Moves apps to the Trash, and moves apps sitting in Downloads or on the Desktop into Applications. Apps aren't rearranged inside Applications, because that can break updates. |
+| **Clean Up** | Removes the items you tick: app caches, logs and Xcode and Simulator leftovers are deleted for good, and old installers go to the Trash. |
 | **Storage** | Free-space bar, the size of every folder in your home folder, files over 200 MB, and known space hogs: old iPhone backups, Xcode files, app caches. |
-| **Photos** | Screenshots, likely duplicates (same second and dimensions) and longest videos. Deletions go to Recently Deleted for 30 days, and reach your iPhone too if iCloud Photos is on. |
+| **Photos** | Screenshots, duplicates (same second and dimensions, with matching pixels) and longest videos. Deletions go to Recently Deleted for 30 days, and reach your iPhone too if iCloud Photos is on. |
 | **Tasks & Notes** | Simple to-dos with due dates, plus searchable notes. |
 
 ## iPhone
 
 | Tab | What it does |
 | --- | --- |
-| **Photos** | The same cleanup as on the Mac: screenshots, likely duplicates and longest videos, plus how much space is free. iOS asks before anything is deleted. |
+| **Photos** | The same cleanup as on the Mac: screenshots, duplicates and longest videos, plus how much space is free. iOS asks before anything is deleted. |
 | **Files** | Pick a messy folder in the Files app (for example Downloads in iCloud Drive, or On My iPhone). Tidy sorts it with the same rules as the Mac, with duplicates and Undo. It remembers the folder. |
 | **Tasks** / **Notes** | To-dos and notes on the phone. |
 
@@ -57,6 +60,7 @@ With a free account the app stops opening after 7 days. Press Run again in Xcode
 - File moves are previewed first, and the last batch can be undone.
 - Things are only ever moved to the Trash (or Recently Deleted), never deleted outright.
 - Auto-sort only touches files that landed in Downloads *after* it started watching. It won't start until it can read the folder, and every sorted file has an **Undo** in the menu bar.
+- Clean Up skips Apple's own caches and those of open apps, and shows what it will remove before anything happens.
 - Storage won't trash anything inside `~/Library` or inside app or Photos library bundles. For those it only offers **Show in Finder**.
 
 ## Roadmap

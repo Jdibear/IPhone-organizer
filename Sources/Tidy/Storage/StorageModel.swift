@@ -58,6 +58,7 @@ final class StorageModel {
             try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
             report?.largeFiles.removeAll { $0.id == item.id }
             status = "Moved \(item.url.lastPathComponent) to the Trash (\(item.size.byteString))."
+            ActivityLog.shared.add(status!, icon: "trash")
         } catch {
             status = "Couldn't move \(item.url.lastPathComponent) to the Trash: \(error.localizedDescription)"
         }
