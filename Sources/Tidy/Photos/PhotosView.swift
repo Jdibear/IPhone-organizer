@@ -4,6 +4,7 @@ import AppKit
 
 struct PhotosView: View {
     @Bindable var model: PhotosModel
+    @State private var previewing: PreviewedAsset?
 
     var body: some View {
         Group {
@@ -32,6 +33,7 @@ struct PhotosView: View {
             }
         }
         .navigationTitle("Photos")
+        .sheet(item: $previewing) { AssetPreviewSheet(asset: $0.asset, model: model) }
         .task {
             if model.hasAccess && !model.hasLoaded { await model.load() }
         }
@@ -80,7 +82,7 @@ struct PhotosView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         ForEach(model.duplicateGroups, id: \.first!.localIdentifier) { group in
-                            DuplicateGroupRow(group: group, model: model)
+                            DuplicateGroupRow(group: group, model: model) { previewing = PreviewedAsset(asset: $0) }
                         }
                     }
                     .padding()
@@ -91,6 +93,7 @@ struct PhotosView: View {
                         ForEach(model.currentAssets, id: \.localIdentifier) { asset in
                             AssetThumbnail(asset: asset, isSelected: model.selection.contains(asset.localIdentifier))
                                 .onTapGesture { model.toggle(asset) }
+                                .previewMenu { previewing = PreviewedAsset(asset: asset) }
                         }
                     }
                     .padding()
@@ -103,9 +106,9 @@ struct PhotosView: View {
         if model.section == .duplicates {
             let groups = model.duplicateGroups.count
             return "\(groups) \(groups == 1 ? "set" : "sets") of duplicate photos. The first in each set is the original; "
-                + "Select All picks only the copies. Deleted items go to Recently Deleted for 30 days."
+                + "Select All picks only the copies. Right-click a photo to preview it. Deleted items go to Recently Deleted for 30 days."
         }
-        return "Click to select. Deleted items go to Recently Deleted for 30 days, and sync to your iPhone if iCloud Photos is on."
+        return "Click to select, right-click to preview. Deleted items go to Recently Deleted for 30 days, and sync to your iPhone if iCloud Photos is on."
     }
 
     private func count(_ section: PhotosModel.Section) -> Int {
@@ -121,11 +124,12 @@ struct PhotosView: View {
 private struct DuplicateGroupRow: View {
     let group: [PHAsset]
     let model: PhotosModel
+    let onPreview: (PHAsset) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("\(group.count) copies").font(.headline)
+                Text("\(group.count) identical photos").font(.headline)
                 if let date = group.first?.creationDate {
                     Text(date, format: .dateTime.day().month(.abbreviated).year().hour().minute())
                         .foregroundStyle(.secondary)
@@ -145,9 +149,52 @@ private struct DuplicateGroupRow: View {
                                 .padding(6)
                         }
                         .onTapGesture { model.toggle(asset) }
+                        .previewMenu { onPreview(asset) }
                 }
             }
             }
+        }
+    }
+}
+
+private struct PreviewedAsset: Identifiable {
+    let asset: PHAsset
+    var id: String { asset.localIdentifier }
+}
+
+private extension View {
+    func previewMenu(_ action: @escaping () -> Void) -> some View {
+        contextMenu {
+            Button("Preview", systemImage: "eye", action: action)
+        }
+    }
+}
+
+/// A big view of a photo or a playing video, so you can check it before deleting it.
+private struct AssetPreviewSheet: View {
+    let asset: PHAsset
+    let model: PhotosModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var isSelected: Bool { model.selection.contains(asset.localIdentifier) }
+
+    var body: some View {
+        let size = AssetPreviewContent.fittedSize(for: asset, in: CGSize(width: 900, height: 620))
+        VStack(spacing: 0) {
+            AssetPreviewContent(asset: asset, isInteractive: true)
+                .frame(width: max(size.width, 420), height: size.height)
+            HStack {
+                if let date = asset.creationDate {
+                    Text(date, format: .dateTime.day().month(.abbreviated).year().hour().minute())
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Toggle("Select for deleting", isOn: Binding(get: { isSelected }, set: { _ in model.toggle(asset) }))
+                    .toggleStyle(.checkbox)
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding()
         }
     }
 }
