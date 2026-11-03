@@ -11,14 +11,14 @@ Native SwiftUI apps that keep your Mac and iPhone organized.
 | **Apps** | Lists your apps by type, by size, or by those not opened in 6 months. Moves apps to the Trash, and moves apps sitting in Downloads or on the Desktop into Applications. Apps aren't rearranged inside Applications, because that can break updates. |
 | **Clean Up** | Removes the items you tick: app caches, logs and Xcode and Simulator leftovers are deleted for good, and old installers go to the Trash. |
 | **Storage** | Free-space bar, the size of every folder in your home folder, files over 200 MB, and known space hogs: old iPhone backups, Xcode files, app caches. |
-| **Photos** | Screenshots, duplicates (same second and dimensions, with matching pixels) and longest videos. Deletions go to Recently Deleted for 30 days, and reach your iPhone too if iCloud Photos is on. |
+| **Photos** | Screenshots, duplicates (same second and dimensions, with matching pixels) and longest videos. Right-click to preview a photo or play a video. Deletions go to Recently Deleted for 30 days, and reach your iPhone too if iCloud Photos is on. |
 | **Tasks & Notes** | Simple to-dos with due dates, plus searchable notes. |
 
 ## iPhone
 
 | Tab | What it does |
 | --- | --- |
-| **Photos** | The same cleanup as on the Mac: screenshots, duplicates and longest videos, plus how much space is free. iOS asks before anything is deleted. |
+| **Photos** | The same cleanup as on the Mac: screenshots, duplicates and longest videos, plus how much space is free. Hold a photo to see it bigger or a video to watch it play. iOS asks before anything is deleted. |
 | **Files** | Pick a messy folder in the Files app (for example Downloads in iCloud Drive, or On My iPhone). Tidy sorts it with the same rules as the Mac, with duplicates and Undo. It remembers the folder. |
 | **Tasks** / **Notes** | To-dos and notes on the phone. |
 

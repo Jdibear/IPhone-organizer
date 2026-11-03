@@ -5,6 +5,7 @@ import UIKit
 struct PhotosScreen: View {
     @Bindable var model: PhotosModel
     @Environment(\.openURL) private var openURL
+    @State private var fullScreen: FullScreenAsset?
 
     var body: some View {
         Group {
@@ -63,7 +64,7 @@ struct PhotosScreen: View {
                 } else if model.section == .duplicates {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         ForEach(model.duplicateGroups, id: \.first!.localIdentifier) { group in
-                            DuplicateGroupRow(group: group, model: model)
+                            DuplicateGroupRow(group: group, model: model) { fullScreen = FullScreenAsset(asset: $0) }
                         }
                     }
                 } else {
@@ -71,6 +72,7 @@ struct PhotosScreen: View {
                         ForEach(model.currentAssets, id: \.localIdentifier) { asset in
                             PhotoThumbnail(asset: asset, isSelected: model.selection.contains(asset.localIdentifier))
                                 .onTapGesture { model.toggle(asset) }
+                                .holdToPreview(asset, model: model) { fullScreen = FullScreenAsset(asset: $0) }
                         }
                     }
                 }
@@ -78,6 +80,7 @@ struct PhotosScreen: View {
             .padding()
         }
         .refreshable { await model.load() }
+        .fullScreenCover(item: $fullScreen) { AssetFullScreenView(asset: $0.asset, model: model) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Select All", action: model.selectAllInSection)
@@ -104,10 +107,10 @@ struct PhotosScreen: View {
     private var summary: String {
         if model.section == .duplicates {
             let groups = model.duplicateGroups.count
-            return "\(groups) \(groups == 1 ? "set" : "sets") of duplicate photos, \(model.duplicates.count) extra copies. "
-                + "The first photo in each set is the original; Select All picks only the copies."
+            return "\(groups) \(groups == 1 ? "set" : "sets") of duplicate photos, \(model.duplicates.count) extra \(model.duplicates.count == 1 ? "copy" : "copies"). "
+                + "The first photo in each set is the original; Select All picks only the copies. Hold a photo to see it bigger."
         }
-        return "\(model.currentAssets.count) found. Tap to select. Deleted items stay in Recently Deleted for 30 days."
+        return "\(model.currentAssets.count) found. Tap to select, hold to see it bigger. Deleted items stay in Recently Deleted for 30 days."
     }
 
     private func shortName(_ section: PhotosModel.Section) -> String {
@@ -129,11 +132,12 @@ struct PhotosScreen: View {
 private struct DuplicateGroupRow: View {
     let group: [PHAsset]
     let model: PhotosModel
+    let onViewFullScreen: (PHAsset) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("\(group.count) copies").font(.subheadline.bold())
+                Text("\(group.count) identical photos").font(.subheadline.bold())
                 if let date = group.first?.creationDate {
                     Text(date, format: .dateTime.day().month(.abbreviated).year().hour().minute())
                         .font(.subheadline)
@@ -156,9 +160,78 @@ private struct DuplicateGroupRow: View {
                                     .padding(5)
                             }
                             .onTapGesture { model.toggle(asset) }
+                            .holdToPreview(asset, model: model, onViewFullScreen: onViewFullScreen)
                     }
                 }
             }
+        }
+    }
+}
+
+private struct FullScreenAsset: Identifiable {
+    let asset: PHAsset
+    var id: String { asset.localIdentifier }
+}
+
+private extension View {
+    /// Hold a photo to see it bigger, or a video to watch it play. Letting go keeps it open until you tap away.
+    func holdToPreview(_ asset: PHAsset, model: PhotosModel, onViewFullScreen: @escaping (PHAsset) -> Void) -> some View {
+        contextMenu {
+            Button(model.selection.contains(asset.localIdentifier) ? "Deselect" : "Select for Deleting",
+                   systemImage: "checkmark.circle") {
+                model.toggle(asset)
+            }
+            Button("View Full Screen", systemImage: "arrow.up.left.and.arrow.down.right") {
+                onViewFullScreen(asset)
+            }
+        } preview: {
+            let size = AssetPreviewContent.fittedSize(for: asset, in: CGSize(width: 350, height: 520))
+            AssetPreviewContent(asset: asset)
+                .frame(width: size.width, height: size.height)
+        }
+    }
+}
+
+/// Full-size view with playback controls for videos, and pinch or double-tap to zoom for photos.
+private struct AssetFullScreenView: View {
+    let asset: PHAsset
+    let model: PhotosModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var isSelected: Bool { model.selection.contains(asset.localIdentifier) }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            AssetPreviewContent(asset: asset, isInteractive: true)
+        }
+        .safeAreaInset(edge: .top) {
+            HStack {
+                if let date = asset.creationDate {
+                    Text(date, format: .dateTime.day().month(.abbreviated).year().hour().minute())
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                Spacer()
+                Button("Close", systemImage: "xmark.circle.fill") { dismiss() }
+                    .labelStyle(.iconOnly)
+                    .font(.title)
+                    .foregroundStyle(.white)
+            }
+            .padding(.horizontal)
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                model.toggle(asset)
+            } label: {
+                Label(isSelected ? "Selected for Deleting" : "Select for Deleting",
+                      systemImage: isSelected ? "checkmark.circle.fill" : "circle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(isSelected ? .red : .gray)
+            .controlSize(.large)
+            .padding()
         }
     }
 }
